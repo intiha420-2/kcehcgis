@@ -7,24 +7,50 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: kcehcgis-windows
+            output_name: kcehcgis.exe
+          - os: ubuntu-latest
+            artifact_name: kcehcgis-linux
+            output_name: kcehcgis_linux
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Setup MSVC Developer Command Prompt
+    # Windows compilation stage
+    - name: Setup MSVC (Windows Only)
+      if: matrix.os == 'windows-latest'
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
 
-    - name: Compile kcehcgis Binary
+    - name: Compile (Windows Only)
+      if: matrix.os == 'windows-latest'
       run: |
-        cl.exe /EHsc /O2 /Fe:kcehcgis.exe kcehcgis.cpp crypt32.lib wintrust.lib advapi32.lib
-        
+        cl.exe /EHsc /O2 /Fe:${{ matrix.output_name }} kcehcgis.cpp crypt32.lib wintrust.lib advapi32.lib
+
+    # Linux compilation stage
+    - name: Install OpenSSL Dependencies (Linux Only)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libssl-dev g++
+
+    - name: Compile (Linux Only)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        g++ -O2 -std=c++17 -o ${{ matrix.output_name }} kcehcgis_linux.cpp -lcrypto
+
+    # Upload final binaries
     - name: Upload Finished Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: kcehcgis-build-amd64
-        path: kcehcgis.exe
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.output_name }}
